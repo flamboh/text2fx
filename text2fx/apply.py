@@ -45,14 +45,15 @@ def main(audio_path: Union[str, Path, AudioSignal],
          n_iters: int = 600,
          criterion: str = 'cosine-sim',
          model: str = 'ms_clap',
-         detailed_log:bool = False) -> Tuple[AudioSignal, torch.Tensor, dict]:
+         detailed_log:bool = False,
+         pls_normalize:bool = True) -> Tuple[AudioSignal, torch.Tensor, dict]:
 
     # Preprocess full audio from path, return AudioSignal
     print('text2fx on full sig')
-    in_sig = tc.preprocess_audio(audio_path).to(DEVICE)
+    # in_sig = tc.preprocess_audio(audio_path).to(DEVICE)
 
     # print('text2fx on 3s salient_excerpt')
-    # in_sig = tc.preprocess_audio(audio_path, salient_excerpt_duration=3).to(DEVICE)
+    in_sig = tc.preprocess_audio(audio_path, salient_excerpt_duration=3).to(DEVICE)
 
     print(f'1. processing input ... {audio_path}')
 
@@ -85,6 +86,7 @@ def main(audio_path: Union[str, Path, AudioSignal],
         n_iters=n_iters,
         roll_amt=roll_amt,
         detailed_log=detailed_log,
+        pls_normalize=pls_normalize
     )
 
     if export_dir:

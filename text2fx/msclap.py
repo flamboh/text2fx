@@ -27,6 +27,8 @@ class MSCLAPWrapper(AbstractCLAPWrapper):
 
     def __init__(self):
         self.clap_model = CLAP(version = '2023', use_cuda=True)
+        # self.clap_model = CLAP(version = '2022', use_cuda=False)
+
 
     #testing just the clap_model.load_audio() !!
     def resample(self, signal: AudioSignal, resample=True):
@@ -84,14 +86,26 @@ class MSCLAPWrapper(AbstractCLAPWrapper):
         preprocessed_audio = preprocessed_audio.reshape(preprocessed_audio.shape[0], preprocessed_audio.shape[2])
         return self.clap_model.clap.audio_encoder(preprocessed_audio)[0]
 
+    # def _get_audio_embed(self, preprocessed_audio: AudioSignal, layer: int = 5) -> torch.Tensor:
+    #     preprocessed_audio = preprocessed_audio.reshape(preprocessed_audio.shape[0], preprocessed_audio.shape[2])
+        
+    #     # Forward pass through audio encoder
+    #     all_layer_outputs = self.clap_model.clap.audio_encoder(preprocessed_audio, output_hidden_states=True)
+        
+    #     if layer is None:  
+    #         return all_layer_outputs[0]  # Default behavior (final layer)
+    #     else:
+    #         return all_layer_outputs[1][layer]  # Return specific layer embedding
+        
+
     def get_audio_embeddings(self, signal: AudioSignal) -> torch.Tensor: 
         return self._get_audio_embed(self.preprocess_audio(signal).samples)
 
     def get_text_embeddings(self, texts) -> torch.Tensor:
         return self.clap_model.get_text_embeddings(texts)
     
-    def compute_similarities(self, audio_emb, text_emb) -> torch.Tensor:
-        return self.clap_model.compute_similarities(audio_emb, text_emb)
+    def compute_similarity(self, audio_emb, text_emb) -> torch.Tensor:
+        return self.clap_model.compute_similarity(audio_emb, text_emb)
 
     @property
     def sample_rate(self):
