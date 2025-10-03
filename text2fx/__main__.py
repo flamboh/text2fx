@@ -209,7 +209,16 @@ def text2fx(
         all_embeds.append(embeds)
 
     # Shape: (batch_size, embedding_dim)
-    embedding_target = torch.cat(all_embeds, dim=0).detach()
+    text_emb = torch.cat(all_embeds, dim=0).detach()
+    # embedding_target = torch.cat(all_embeds, dim=0).detach()
+
+    #TODO: use input audio semantic descriptor as anchor
+    alpha = 0.3  # slider: how strong is the text influence
+    audio_in_emb = clap.get_audio_embeddings(sig.to(device)).detach()
+    text_emb = clap.get_text_embeddings(text).detach()
+
+    embedding_target = (1 - alpha) * audio_in_emb + alpha * text_emb
+    embedding_target = embedding_target / embedding_target.norm(dim=-1, keepdim=True)
 
     if criterion == "directional_loss":
         audio_in_emb = clap.get_audio_embeddings(sig.to(device)).detach()
@@ -290,7 +299,7 @@ def text2fx(
             # want high pos_sim, low neg_sim
             batch_loss = (1 - pos_sim) + (neg_sim.clamp(min=0))  # margin could help
 
-        elif criterion == "clap-loss":
+        elif criterion == "clap-loss": #requires batch size > 1
             logits = clap.compute_similarity(embedding_effected, embedding_target)
             # logits: (batch_size x batch_size), diagonal are the "true" matches
             labels = torch.arange(logits.size(0), device=logits.device)
