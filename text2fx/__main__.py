@@ -16,7 +16,6 @@ import json
 from text2fx.core import Channel, AbstractCLAPWrapper, Distortion, create_save_dir, preprocess_audio, detensor_dict, slugify
 from text2fx.constants import RUNS_DIR, SAMPLE_RATE, DEVICE
 
-
 """
 EX CLI USAGE
 python -m text2fx --input_audio "assets/speech_examples/VCTK_p225_001_mic1.flac"\
@@ -40,6 +39,13 @@ def get_model(model_choice: str):
     else:
         raise ValueError('choose a model1!!!!!!')
     return model
+
+
+def rms_norm(sig, target_rms=0.1, eps=1e-8):
+    s = sig.clone()
+    rms = (s.samples.pow(2).mean(dim=(-1,-2), keepdim=True) + eps).sqrt()
+    s.samples = s.samples * (target_rms / (rms + eps))
+    return s
 
 
 def clip_directional_loss(
@@ -66,6 +72,24 @@ def get_default_channel():
         # Distortion(sample_rate=SAMPLE_RATE),
     )
 
+def multi_res_stft_loss(x, y):
+    """
+    Multi-resolution STFT loss between two signals.
+    Expects x, y shaped (B, C, T) or (B, T).
+    """
+    # Handle both mono/stereo
+    if x.ndim == 3:  # (B, C, T)
+        x = x.mean(dim=1)  # mix down channels
+    if y.ndim == 3:
+        y = y.mean(dim=1)
+    losses = []
+    for n_fft, hop in [(512, 128), (1024, 256), (2048, 512)]:
+        X = torch.view_as_real(torch.stft(x, n_fft=n_fft, hop_length=hop, return_complex=True))
+        Y = torch.view_as_real(torch.stft(y, n_fft=n_fft, hop_length=hop, return_complex=True))
+        losses.append(torch.nn.functional.l1_loss(X, Y))
+    return sum(losses) / len(losses)
+
+
 def text2fx(
     model_name: str,
     sig_in: Union[torch.Tensor, str, Path, np.ndarray, AudioSignal], 
@@ -87,11 +111,11 @@ def text2fx(
     pls_normalize: bool = True,
 ):
 
-    clap = get_model(model_name)
-    print(criterion)
+    ##### ============ Set up!!!!! ==========
+    clap = get_model(model_name) #default to ms_clap, though laion_clap might be better....
+    print(f"Criterion: {criterion}")
 
     sig = preprocess_audio(sig_in).to(device) #preprocessing initial sample (entire sample)
-    # print("taking 3s sample")
     # sig = preprocess_audio(sig_in, 3).to(device) #for fast version, taking 3s excerpt
 
     # a save dir for our goods
@@ -103,7 +127,7 @@ def text2fx(
             # save_dir = create_save_dir(f'{text}', Path(save_dir))
             save_dir.mkdir(exist_ok=True, parents=True)
 
-    # create a writer for saving stuff to tensorboard
+    # Tensorboard writer
     if log_tensorboard:
         writer_dir = save_dir / "logs"
         writer_dir.mkdir(exist_ok=True)
@@ -111,30 +135,23 @@ def text2fx(
     else:
         writer = False
 
-    # Choosing random FX params to start
-    if params_init_type=='zeros':
-        params = torch.nn.parameter.Parameter(
-            torch.zeros(sig.batch_size, channel.num_params).to(device) 
-        )
-    elif params_init_type=='random':
-        params = torch.nn.parameter.Parameter(
-            torch.randn(sig.batch_size, channel.num_params).to(device) 
-        )
-
-    elif params_init_type=='super_random':
-        params = torch.nn.parameter.Parameter(
-            (torch.randn(sig.batch_size, channel.num_params).to(device) * 8) 
-        )
+    # FX parameter initialization
+    if params_init_type == 'zeros':
+        params = torch.nn.parameter.Parameter(torch.zeros(sig.batch_size, channel.num_params).to(device))
+    elif params_init_type == 'random':
+        params = torch.nn.parameter.Parameter(torch.randn(sig.batch_size, channel.num_params).to(device))
+    elif params_init_type == 'super_random':
+        params = torch.nn.parameter.Parameter((torch.randn(sig.batch_size, channel.num_params).to(device) * 8))
     elif params_init_type == 'curriculum':
-    # start near zero (identity FX) for stability
-        params = torch.nn.parameter.Parameter(
-            0.01 * torch.randn(sig.batch_size, channel.num_params).to(device)
-        )
-        
+        params = torch.nn.parameter.Parameter(0.01 * torch.randn(sig.batch_size, channel.num_params).to(device))
     else:
-        raise ValueError
+        raise ValueError(f"Unknown params_init_type: {params_init_type}")
     
-    # Log the model, torch amount, starting parameters, and their values
+
+    params.requires_grad=True
+
+
+    # =====LOGGING=====
     if log_tensorboard or export_audio or detailed_log:
         log_file = save_dir / f"experiment_log.txt"
         with open(log_file, "w") as log:
@@ -150,15 +167,19 @@ def text2fx(
             log.write("="*40 + "\n")
 
     # setting up the optimizer
-    #TODO: adapt to do CMA
-    params.requires_grad=True
-    optimizer = torch.optim.Adam([params], lr=lr)     # the optimizer!
+    if optimizer_type.lower() == "adam":
+        optimizer = torch.optim.Adam([params], lr=lr)
+    elif optimizer_type.lower() == "sgd":
+        optimizer = torch.optim.SGD([params], lr=lr, momentum=0.9)
+    elif optimizer_type.lower() == "cma_es": #TODO: implement CMA-ES
+        raise NotImplementedError("CMA-ES optimizer not implemented yet")
+    else:
+        raise ValueError(f"Unknown optimizer_type: {optimizer_type}")
 
 
-    # Play initial signal with random FX parameters applied
+    # ==================== INITIAL SIGNAL ====================
     init_sig = channel(sig.clone().to(device), torch.sigmoid(params))
 
-    # Logging
     if writer:
         writer.add_audio("input", sig.samples[0][0], 0, sample_rate=sig.sample_rate)
         writer.add_audio("effected", init_sig.samples[0][0], 0, sample_rate=init_sig.sample_rate)
@@ -168,35 +189,23 @@ def text2fx(
             init_sig_path = Path(init_sig.path_to_file)
             sig.clone().detach().cpu().write(save_dir / f'{init_sig_path.stem}_input.wav')
             init_sig.detach().cpu().write(save_dir / f'{init_sig_path.stem}_starting.wav')
-
         else:
             for i, s in enumerate(init_sig):
                 sig[i].clone().detach().cpu().write(save_dir / f'{init_sig.path_to_file[i].stem}_input.wav')
                 init_sig[i].detach().cpu().write(save_dir / f'{init_sig.path_to_file[i].stem}_starting.wav')
 
-    # Preparing our text target
-
+    # ======= TEXT PREP========
     if isinstance(text, str):
         text = [text]
     assert len(text) == sig.batch_size or len(text) == 1
-
     if len(text) < sig.batch_size:
         text = text * sig.batch_size
 
-    # # Preprocess text
-    # # text_processed = [
-    # #     f"this sound is {t}" for t in text
-    # # ]
+    # OLD Preprocess text
+    # # text_processed = [f"this sound is {t}" for t in text]
     # embedding_target = clap.get_text_embeddings(text_processed).detach()
-    # # print(embedding_target)
-
-
     # 10/3/2025: Text is already a list with length = batch_size
-    templates = [
-        "this sound is {}",
-        "a recording of {}",
-        "audio that embodies {}"
-    ]
+    templates = ["this sound is {}", "a recording of {}", "audio that embodies {}"]
 
     # Collect embeddings for each text in batch, across all templates
     all_embeds = []
@@ -207,41 +216,42 @@ def text2fx(
             embeds.append(clap.get_text_embeddings([sentence]))
         embeds = torch.stack(embeds).mean(0)  # average over templates
         all_embeds.append(embeds)
+    text_emb = torch.cat(all_embeds, dim=0).detach()     # Shape: (batch_size, embedding_dim)
+    text_emb = torch.nn.functional.normalize(text_emb, dim=-1)
 
-    # Shape: (batch_size, embedding_dim)
-    text_emb = torch.cat(all_embeds, dim=0).detach()
-    # embedding_target = torch.cat(all_embeds, dim=0).detach()
-
-    #TODO: use input audio semantic descriptor as anchor
-    alpha = 0.3  # slider: how strong is the text influence
+    ### ==== INPUT ADUIO EMB =====
     audio_in_emb = clap.get_audio_embeddings(sig.to(device)).detach()
-    text_emb = clap.get_text_embeddings(text).detach()
+    audio_in_emb = torch.nn.functional.normalize(audio_in_emb, dim=-1)
 
+    # ====== TARGET EMBED blending ======
+    alpha = 0.8  # slider: how strong is the text influence
+    print(f"text: {text}, alpha = {alpha}")
     embedding_target = (1 - alpha) * audio_in_emb + alpha * text_emb
-    embedding_target = embedding_target / embedding_target.norm(dim=-1, keepdim=True)
 
-    if criterion == "directional_loss":
-        audio_in_emb = clap.get_audio_embeddings(sig.to(device)).detach()
 
-        # text_neg_processed = [
-        #     f"this sound is not {t}" for t in text
-        # ]
-        text_neg_processed = [
-            f"not {t}" for t in text
-        ]
-        text_anchor_emb = clap.get_text_embeddings(text_neg_processed).detach()
+    # ====== NEGATIVE ANCHOR EMBED ======
+    if criterion == "cosine-sim":
+        neg_templates = ["not {}", "the opposite of {}", "definitely not {}"]
+        neg_embeds = []
+        for t in text:
+            e = []
+            for temp in neg_templates:
+                e.append(clap.get_text_embeddings([temp.format(t)]))
+            e = torch.stack(e).mean(0)
+            neg_embeds.append(e)
+        embedding_neg = torch.cat(neg_embeds, dim=0).detach()
+        # embedding_neg = torch.nn.functional.normalize(embedding_neg, dim=-1)
+    else:
+        embedding_neg = None
 
-    final_losses = []
-
-    print("Starting optimization...")
     print(f"Starting optimization with {sig.batch_size} samples...")
     print(f"pls_normalize: {pls_normalize}")
 
+    # ==================== OPTIMIZATION LOOP ====================
     # Single-Instance Optimization: Optimize our parameters by matching effected audio against the target text embedding
     pbar = tqdm(range(n_iters), total=n_iters)
     for n in pbar:
-        # Apply effect with out estimated parameters
-        # Code for signal rolling
+        # rolling
         sig_roll = sig.clone()
         if roll_amt or roll_amt == 0:
             roll_amount = torch.randint(-roll_amt, roll_amt + 1, (sig_roll.batch_size,))
@@ -254,7 +264,6 @@ def text2fx(
 
         for i in range(sig_roll.batch_size):
             rolled = torch.roll(sig_roll.samples[i], shifts=roll_amount[i].item(), dims=-1)
-            # print(rolled)
             sig_roll.samples[i:i+1] = rolled
 
         # Curriculum annealing (always apply, but factor=1.0 if not curriculum)
@@ -267,57 +276,46 @@ def text2fx(
         scaled_params = torch.sigmoid(params.to(device)) * anneal_factor
         signal_effected = channel(sig_roll.to(device), scaled_params)
 
-        # signal_effected_original = channel(sig.clone().to(device), torch.sigmoid(params.to(device))) #for logging
-
-
         # Get CLAP embedding for effected audio
         embedding_effected = clap.get_audio_embeddings(signal_effected) #.get_audio_embeddings takes in preprocessed audio
-
-        embedding_effected = embedding_effected / embedding_effected.norm(dim=-1, keepdim=True)
-        embedding_target = embedding_target / embedding_target.norm(dim=-1, keepdim=True)
-
+        embedding_effected = torch.nn.functional.normalize(embedding_effected, dim=-1)
 
         # Calculating Loss
         if criterion == "directional_loss":
+            text_neg_processed = [f"not {t}" for t in text]
+            text_anchor_emb = clap.get_text_embeddings(text_neg_processed).detach()
             batch_loss = clip_directional_loss(embedding_effected, audio_in_emb, embedding_target, text_anchor_emb)
-            # loss = clip_directional_loss(embedding_effected, audio_in_emb, embedding_target, text_anchor_emb).mean()
+
         elif criterion == "standard": #is neg dot product loss aims to minimize the dot prod b/w dissimilar items, no direction intake
-            batch_loss = -(embedding_effected @ embedding_target.T)
-            # loss = -(embedding_effected @ embedding_target.T).mean()
+            batch_loss = - (embedding_effected * embedding_target).sum(dim=-1)
+
         # elif criterion == "cosine-sim": # cosine_sim loss aims to maximize the cosine similarity between similar items, normalized
         #     batch_loss = 1 - torch.cosine_similarity(embedding_effected, embedding_target, dim=-1)
         elif criterion == "cosine-sim":
             pos_sim = torch.cosine_similarity(embedding_effected, embedding_target, dim=-1)
-            
-            # negative template: "not {t}"
-            text_neg = [f"not {tt}" for tt in text]
-            embedding_neg = clap.get_text_embeddings(text_neg).detach()
-            embedding_neg = embedding_neg / embedding_neg.norm(dim=-1, keepdim=True)
-
             neg_sim = torch.cosine_similarity(embedding_effected, embedding_neg, dim=-1)
+            margin = 0.2
+            batch_loss = (1 - pos_sim) + torch.relu(neg_sim - margin)
 
-            # want high pos_sim, low neg_sim
-            batch_loss = (1 - pos_sim) + (neg_sim.clamp(min=0))  # margin could help
-
-        elif criterion == "clap-loss": #requires batch size > 1
-            logits = clap.compute_similarity(embedding_effected, embedding_target)
-            # logits: (batch_size x batch_size), diagonal are the "true" matches
-            labels = torch.arange(logits.size(0), device=logits.device)
-            batch_loss = torch.nn.functional.cross_entropy(logits, labels)
         else:
             raise ValueError(f"Criterion {criterion} not recognized")
         
-        loss = batch_loss.mean()
+        # === PERCEPTUAL LOSS?? AS A REGULARIZER?? ===
+        lambda_spec = 0.05
+        spec_loss = multi_res_stft_loss(signal_effected.samples, sig_roll.samples)
+        loss = batch_loss.mean() + lambda_spec * spec_loss
+        # loss = batch_loss.mean()
+
         if writer: 
             writer.add_scalar("loss", loss.item(), n)
 
         # Optimize
         optimizer.zero_grad()
         loss.backward()
+        torch.nn.utils.clip_grad_norm_([params], max_norm=5.0)
         optimizer.step()
 
         pbar.set_description(f"step: {n+1}/{n_iters}, loss: {loss.item():.3f}")
-
 
         # Initialize variable to store the initial loss
         if n == 0:
@@ -329,11 +327,7 @@ def text2fx(
             loss_change = final_loss - initial_loss  # Compute change in loss
             print(f"Initial loss: {initial_loss} // Final loss: {final_loss}")
             print(f"Change in loss from iteration 0 to {n_iters - 1}: {loss_change}")
-            
-        # #saving last batch_loss
-        # if n == n_iters - 1:
-        #     final_losses = batch_loss.detach().cpu().numpy()
-
+    
         if log_tensorboard:
             if n % log_audio_every_n == 0:
                 # Save audio
@@ -368,10 +362,9 @@ def text2fx(
     # min_loss_index = int(np.argmin(final_losses)) # used for comparing across multiple runs
 
     # Play final signal with optimized effects parameters
-    clean_sig = preprocess_audio(sig_in) #taking full input sample 
-    out_sig = channel(clean_sig.clone().to(device), torch.sigmoid(params)).clone().detach().cpu()
-    # out_sig = channel(sig.clone().to(device), torch.sigmoid(params)).clone().detach().cpu()
-    out_sig = preprocess_audio(out_sig) 
+    clean_sig = preprocess_audio(sig_in).to(device) #taking full input sample 
+    out_sig = channel(clean_sig.clone(), torch.sigmoid(params)).clone().detach().cpu()
+    out_sig = preprocess_audio(out_sig)  
     out_params = params.detach().cpu() #optimized output FXparams
     out_params_dict = channel.save_params_to_dict(out_params) #mapping back to FX ranges
 

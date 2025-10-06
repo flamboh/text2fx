@@ -86,18 +86,6 @@ class MSCLAPWrapper(AbstractCLAPWrapper):
         preprocessed_audio = preprocessed_audio.reshape(preprocessed_audio.shape[0], preprocessed_audio.shape[2])
         return self.clap_model.clap.audio_encoder(preprocessed_audio)[0]
 
-    # def _get_audio_embed(self, preprocessed_audio: AudioSignal, layer: int = 5) -> torch.Tensor:
-    #     preprocessed_audio = preprocessed_audio.reshape(preprocessed_audio.shape[0], preprocessed_audio.shape[2])
-        
-    #     # Forward pass through audio encoder
-    #     all_layer_outputs = self.clap_model.clap.audio_encoder(preprocessed_audio, output_hidden_states=True)
-        
-    #     if layer is None:  
-    #         return all_layer_outputs[0]  # Default behavior (final layer)
-    #     else:
-    #         return all_layer_outputs[1][layer]  # Return specific layer embedding
-        
-
     def get_audio_embeddings(self, signal: AudioSignal) -> torch.Tensor: 
         return self._get_audio_embed(self.preprocess_audio(signal).samples)
 
