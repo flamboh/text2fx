@@ -766,3 +766,21 @@ def at_salient_excerpt(
             if num_tries is not None and num_try >= num_tries:
                 break
     return excerpt
+
+def set_seed(seed: int = 0, deterministic: bool = True):
+    """Set random seed for reproducibility across random, NumPy, and PyTorch."""
+    import random
+    import numpy as np
+    import torch
+
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+
+    if deterministic:
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
+
+    print(f"[Seed set to {seed}] (deterministic={deterministic})")

@@ -45,7 +45,8 @@ def main(audio_path: Union[str, Path, AudioSignal],
          n_iters: int = 600,
          criterion: str = 'cosine-sim',
          model: str = 'ms_clap',
-         pls_normalize:bool = True) -> Tuple[AudioSignal, torch.Tensor, dict]:
+         pls_normalize:bool = True,
+         custom_embedding_target:torch.Tensor = None,) -> Tuple[AudioSignal, torch.Tensor, dict]:
 
     # Preprocess full audio from path, return AudioSignal
     print('text2fx on full sig')
@@ -70,7 +71,8 @@ def main(audio_path: Union[str, Path, AudioSignal],
         lr=learning_rate,
         n_iters=n_iters,
         roll_amt=roll_amt,
-        pls_normalize=pls_normalize
+        pls_normalize=pls_normalize,
+        custom_embedding_target=custom_embedding_target,
     )
 
     return signal_effected, out_params, out_params_dict

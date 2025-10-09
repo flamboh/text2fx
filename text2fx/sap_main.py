@@ -13,8 +13,9 @@ from torch.utils.tensorboard import SummaryWriter
 import json
 # from msclap import CLAP
 
-from text2fx.core import Channel, AbstractCLAPWrapper, Distortion, create_save_dir, preprocess_audio, detensor_dict, slugify
+from text2fx.core import Channel, AbstractCLAPWrapper, Distortion, create_save_dir, preprocess_audio, detensor_dict, slugify, set_seed
 from text2fx.constants import RUNS_DIR, SAMPLE_RATE, DEVICE
+
 
 """
 new text2fx main function for building a 2D semantic space
@@ -94,9 +95,10 @@ def text2fx(
     n_iters: int = 600,
     criterion: str = "standard", 
     params_init_type: str = "random",
-    # seed_i: int = 0,
+    seed_i: int = 0,
     roll_amt: int = None,
     pls_normalize: bool = True,
+    custom_embedding_target: torch.Tensor = None, #for custom embedding target
 ):
 
     ##### ============ Set up!!!!! ==========
@@ -106,14 +108,13 @@ def text2fx(
     sig = preprocess_audio(sig_in).to(device) #preprocessing initial sample (entire sample)
     # sig = preprocess_audio(sig_in, 5).to(device) #for fast version, taking 3s excerpt
 
-
     # FX parameter initialization
+    set_seed(seed_i, deterministic=False)
+
     if params_init_type == 'zeros':
         params = torch.nn.parameter.Parameter(torch.zeros(sig.batch_size, channel.num_params).to(device))
     elif params_init_type == 'random':
         params = torch.nn.parameter.Parameter(torch.randn(sig.batch_size, channel.num_params).to(device))
-    elif params_init_type == 'super_random':
-        params = torch.nn.parameter.Parameter((torch.randn(sig.batch_size, channel.num_params).to(device) * 8))
     elif params_init_type == 'curriculum':
         params = torch.nn.parameter.Parameter(0.01 * torch.randn(sig.batch_size, channel.num_params).to(device))
     else:
@@ -144,34 +145,29 @@ def text2fx(
     if len(text) < sig.batch_size:
         text = text * sig.batch_size
 
-    # OLD Preprocess text
-    # # text_processed = [f"this sound is {t}" for t in text]
-    # embedding_target = clap.get_text_embeddings(text_processed).detach()
-    # 10/3/2025: Text is already a list with length = batch_size
-    templates = ["this sound is {}", "a recording of {}", "audio that embodies {}"]
+    # Computing embedding target from text if not explicitly provided (as in custom embedding target case)
+    if custom_embedding_target is None:
+        print("No embedding target provided, computing from text...")
+        templates = ["this sound is {}", "a recording of {}", "audio that embodies {}"]
+        # Collect embeddings for each text in batch, across all templates
+        all_embeds = []
+        for t in text:  # Loop over each batch element
+            embeds = []
+            for temp in templates:
+                sentence = temp.format(t)
+                embeds.append(clap.get_text_embeddings([sentence]))
+            embeds = torch.stack(embeds).mean(0)  # average over templates
+            all_embeds.append(embeds)
+        embedding_target = torch.cat(all_embeds, dim=0).detach()     # Shape: (batch_size, embedding_dim)
+        embedding_target = torch.nn.functional.normalize(embedding_target, dim=-1)
+    else:
+        print("Using provided custom embedding target...")
+        embedding_target = torch.nn.functional.normalize(custom_embedding_target.to(device), dim=-1)
 
-    # Collect embeddings for each text in batch, across all templates
-    all_embeds = []
-    for t in text:  # Loop over each batch element
-        embeds = []
-        for temp in templates:
-            sentence = temp.format(t)
-            embeds.append(clap.get_text_embeddings([sentence]))
-        embeds = torch.stack(embeds).mean(0)  # average over templates
-        all_embeds.append(embeds)
-    text_emb = torch.cat(all_embeds, dim=0).detach()     # Shape: (batch_size, embedding_dim)
-    text_emb = torch.nn.functional.normalize(text_emb, dim=-1)
 
     ### ==== INPUT ADUIO EMB =====
     audio_in_emb = clap.get_audio_embeddings(sig.to(device)).detach()
     audio_in_emb = torch.nn.functional.normalize(audio_in_emb, dim=-1)
-
-    # ====== TARGET EMBED blending ======
-    alpha = 1.0  # slider: how strong is the text influence
-    print("newwwwwww")
-    print(f"text: {text}, alpha = {alpha}")
-    embedding_target = (1 - alpha) * audio_in_emb + alpha * text_emb
-
 
     # ====== NEGATIVE ANCHOR EMBED ======
     if criterion == "cosine-sim":
@@ -184,7 +180,7 @@ def text2fx(
             e = torch.stack(e).mean(0)
             neg_embeds.append(e)
         embedding_neg = torch.cat(neg_embeds, dim=0).detach()
-        # embedding_neg = torch.nn.functional.normalize(embedding_neg, dim=-1)
+        embedding_neg = torch.nn.functional.normalize(embedding_neg, dim=-1)
     else:
         embedding_neg = None
 
@@ -224,20 +220,9 @@ def text2fx(
 
         # Calculating Loss
         if criterion == "directional_loss":
-            text_pos_emb = text_emb
             text_neg_processed = [f"not {t}" for t in text]
-            text_neg_emb = clap.get_text_embeddings(text_neg_processed).detach()
-            batch_loss = clip_directional_loss(
-                embedding_effected,   # a1 = current effected audio
-                audio_in_emb,         # a2 = original audio
-                text_pos_emb,         # b1 = target text
-                text_neg_emb,         # b2 = opposite text
-            )
-
-        # if criterion == "directional_loss":
-        #     text_neg_processed = [f"not {t}" for t in text]
-        #     text_anchor_emb = clap.get_text_embeddings(text_neg_processed).detach()
-        #     batch_loss = clip_directional_loss(embedding_effected, audio_in_emb, embedding_target, text_anchor_emb)
+            text_anchor_emb = clap.get_text_embeddings(text_neg_processed).detach()
+            batch_loss = clip_directional_loss(embedding_effected, audio_in_emb, embedding_target, text_anchor_emb)
 
         elif criterion == "standard": #is neg dot product loss aims to minimize the dot prod b/w dissimilar items, no direction intake
             batch_loss = - (embedding_effected * embedding_target).sum(dim=-1)
