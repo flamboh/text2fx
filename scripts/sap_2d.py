@@ -8,6 +8,10 @@ import os
 import gradio_client.utils as gu
 os.environ["TOKENIZERS_PARALLELISM"] = "true"
 
+"""Script currently is super rough 
+It should be where the 2d explore page lives, maybe precomputed embeddings for speed?
+"""
+
 # --- Full monkey patch to make Gradio tolerant of boolean schemas ---
 _old_json_schema_to_python_type = gu._json_schema_to_python_type
 _old_get_type = gu.get_type
