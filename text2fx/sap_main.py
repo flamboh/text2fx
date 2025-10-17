@@ -251,6 +251,41 @@ def text2fx(
         torch.nn.utils.clip_grad_norm_([params], max_norm=5.0)
         optimizer.step()
 
+        ######## oct 17 begin, trying to enforce freq order
+        # === Apply post-step parameter constraints (e.g., ascending EQ freqs) ===
+        with torch.no_grad():
+            scaled = torch.sigmoid(params)  # normalized [0,1]
+            param_offset = 0  # track across all FX modules
+
+            for m in channel.modules:
+                num_params = m.num_params
+                module_name = type(m).__name__
+
+                # Apply only to EQ-like modules
+                if "EQ" in module_name or "Eq" in module_name:
+                    param_names = list(m.param_ranges.keys())
+
+                    # Find which parameters are frequency-like
+                    freq_idx = [param_offset + i
+                                for i, name in enumerate(param_names)
+                                if "cutoff_freq" in name or "freq" in name]
+
+                    if freq_idx:
+                        freqs = scaled[:, freq_idx]
+                        freqs_sorted, _ = torch.sort(freqs, dim=-1)
+                        # Optionally clamp to physical [20 Hz, 20 kHz] normalized range
+                        freqs_sorted = freqs_sorted.clamp(20 / 20000, 1.0)
+                        # Replace the frequency section with sorted version
+                        scaled[:, freq_idx] = freqs_sorted
+
+                        print(f"[Constraint] {module_name}: sorted {len(freq_idx)} freq params ascending.")
+
+                param_offset += num_params  # move to next module range
+
+            # Map back to unconstrained (logit) space for next gradient step
+            params.copy_(torch.logit(scaled.clamp(1e-6, 1 - 1e-6)))
+        ######## oct 17 end
+
         pbar.set_description(f"step: {n+1}/{n_iters}, loss: {loss.item():.3f}")
 
         # Initialize variable to store the initial loss
@@ -265,8 +300,6 @@ def text2fx(
             print(f"Initial loss: {initial_loss} // Final loss: {final_loss}")
             print(f"Change in loss from iteration 0 to {n_iters - 1}: {loss_change}")
     
-  
-   
     # min_loss_index = int(np.argmin(final_losses)) # used for comparing across multiple runs
 
     # Play final signal with optimized effects parameters
