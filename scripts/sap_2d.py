@@ -4,7 +4,9 @@ import torch
 from text2fx.sap_main import get_model
 from text2fx.core import preprocess_audio, create_channel
 
+import os
 import gradio_client.utils as gu
+os.environ["TOKENIZERS_PARALLELISM"] = "true"
 
 # --- Full monkey patch to make Gradio tolerant of boolean schemas ---
 _old_json_schema_to_python_type = gu._json_schema_to_python_type
@@ -35,8 +37,8 @@ def build_semantic_space(clap, device="cuda"):
     # Define poles
     bright = clap.get_text_embeddings(["a bright sound"]).to(device)
     dark = clap.get_text_embeddings(["a dark sound"]).to(device)
-    metallic = clap.get_text_embeddings(["a metallic sound"]).to(device)
-    wooden = clap.get_text_embeddings(["a wooden sound"]).to(device)
+    metallic = clap.get_text_embeddings(["a full sound"]).to(device)
+    wooden = clap.get_text_embeddings(["a hollow sound"]).to(device)
 
     # Normalize embeddings
     for e in [bright, dark, metallic, wooden]:
@@ -82,7 +84,7 @@ def transform_with_semantics(
     out_sig, out_params, out_params_dict = t2fx(input_path, 
                                             use_what_fx, 
                                             ["semantic transform"],
-                                             n_iters=100, #usually 400,600
+                                             n_iters=400, #usually 400,600
                                              params_init_type="curriculum",
                                              criterion= "cosine-sim",  
                                             roll_amt = 3000,
@@ -109,7 +111,7 @@ gr.Interface(
     fn=explore,
     inputs=[
         gr.Slider(-1, 1, step=0.1, label="X Axis: Dark ↔ Bright"),
-        gr.Slider(-1, 1, step=0.1, label="Y Axis: Wooden ↔ Metallic")
+        gr.Slider(-1, 1, step=0.1, label="Y Axis: hollow ↔ full")
     ],
     outputs=gr.Audio(label="Transformed Audio"),
 ).launch(server_port=7869, share=True)

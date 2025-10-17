@@ -101,6 +101,8 @@ def text2fx(
     custom_embedding_target: torch.Tensor = None, #for custom embedding target
 ):
 
+    if custom_embedding_target is not None:
+        print("Using custom embedding target for optimization...")
     ##### ============ Set up!!!!! ==========
     clap = get_model(model_name) #default to ms_clap, though laion_clap might be better....
     print(f"Criterion: {criterion}")

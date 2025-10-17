@@ -5,8 +5,10 @@ import torch
 from audiotools import AudioSignal
 
 import text2fx.core as tc
-from text2fx.sap_main import text2fx
+from text2fx.sap_main import text2fx, get_model
 from text2fx.constants import SAMPLE_RATE, DEVICE
+from text2fx.core import preprocess_audio, detensor_dict, slugify, set_seed
+
 
 """
 SAP EDITION
@@ -34,7 +36,65 @@ python -m text2fx.apply assets/multistem_examples/10s/guitar.wav eq reverb compr
     --params_init_type random \
     --n_iters 200 
 """
+def build_semantic_space(model, device="cuda"):
+    """Builds a 2D semantic space for sound timbre exploration using CLAP embeddings."""
+    # Define poles
+    bright = model.get_text_embeddings(["a bright sound"]).to(device)
+    dark = model.get_text_embeddings(["a dark sound"]).to(device)
+    metallic = model.get_text_embeddings(["a metallic sound"]).to(device)
+    wooden = model.get_text_embeddings(["a wooden sound"]).to(device)
 
+    # Normalize embeddings
+    for e in [bright, dark, metallic, wooden]:
+        e /= e.norm(dim=-1, keepdim=True)
+
+    # Compute axis vectors
+    axis_x = bright - dark
+    axis_y = metallic - wooden
+    e_center = (bright + dark + metallic + wooden) / 4
+
+    def z(x, y):
+        """Returns embedding at coordinate (x, y)"""
+        vec = e_center + x * axis_x + y * axis_y
+        return vec / vec.norm(dim=-1, keepdim=True)
+
+    return z
+
+def transform_with_semantics(
+    input_path: str,
+    x: float,
+    y: float,
+    alpha: float = 1.0,
+    model_name: str = "ms_clap",
+):
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    # Load model
+    clap = get_model(model_name, device)
+    z = build_semantic_space(clap, device)
+
+    # Compute input embedding
+    sig = preprocess_audio(input_path).to(device)
+    audio_emb = clap.get_audio_embeddings(sig).detach()
+    audio_emb = torch.nn.functional.normalize(audio_emb, dim=-1)
+
+    # Compute semantic target embedding
+    embedding_target = (1 - alpha) * audio_emb + alpha * z(x, y)
+    embedding_target = torch.nn.functional.normalize(embedding_target, dim=-1)
+
+
+    # Run text2fx using that embedding target
+    # # ====== Text2FX it! ===========
+    out_sig, out_params, out_params_dict = text2fx(audio_path, 
+                                            FX_chain, 
+                                            target_text,
+                                             n_iters=400, #usually 600
+                                             params_init_type="curriculum",
+                                             criterion= "cosine-sim",  
+                                            roll_amt = 3000,
+                                            pls_normalize=True,
+                                               custom_embedding_target=embedding_target)
+
+    return out_sig, out_params, out_params_dict
 
 def main(audio_path: Union[str, Path, AudioSignal], 
          fx_chain: List[str], 
