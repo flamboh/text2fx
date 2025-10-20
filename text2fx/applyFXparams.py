@@ -26,6 +26,15 @@ python -m text2fx.applyFXparams \
     --params_dict_path experiments/applyFXparams_1/warm.json \
     --export_path experiments/applyFXparams_1/warm_guitar.wav
 """
+def is_normalized_dict(param_dict):
+    """Quick check if values are already in [0, 1]."""
+    vals = []
+    for fx_params in param_dict.values():
+        for v in fx_params.values():
+            if isinstance(v, torch.Tensor): v = v.item()
+            if isinstance(v, list) and len(v)==1: v=v[0]
+            if isinstance(v, (int,float)): vals.append(v)
+    return all(0.0 <= v <= 1.0 for v in vals)
 
 def normalize_param_dict(param_dict: dict, channel) -> dict:
     """Given parameters on (0,1) restore them to the ranges expected by the processor.
@@ -115,8 +124,22 @@ def apply_fx_to_sig(
     fx_chain = list(params_dict.keys())
     fx_channel = tc.create_channel(fx_chain)
 
-    params_dict = normalize_param_dict(params_dict, fx_channel) #normalizing 
-
+    # Only normalize if values look like denormalized (not already in [0,1])
+    if not is_normalized_dict(params_dict):
+        params_dict = normalize_param_dict(params_dict, fx_channel)
+    else:
+        print("[apply_fx_to_sig] Detected normalized parameters, skipping normalization.")
+        
+    # --- Clamp all normalized parameters into [0,1] to avoid DASP range errors ---
+    for fx_name, fx_params in params_dict.items():
+        for k, v in fx_params.items():
+            if isinstance(v, (int, float)):
+                fx_params[k] = float(max(0.0, min(1.0, v)))
+            elif isinstance(v, torch.Tensor):
+                fx_params[k] = torch.clamp(v, 0.0, 1.0)
+            elif isinstance(v, list) and len(v) == 1 and isinstance(v[0], (int, float)):
+                fx_params[k] = [max(0.0, min(1.0, v[0]))]
+                
     # depending on exact json dict output, this will change
     params_list = torch.tensor([value for effect_params in params_dict.values() for value in effect_params.values()])
     if in_sig.batch_size != 1:
