@@ -161,10 +161,30 @@ def update_mid(audio_file,tone,space,params_base,specs):
     params_new=apply_mid_controls(params_base,0.5+tone*0.5,space,CHANNEL)
     return *render_audio_from_params(audio_file,params_new),params_new,json.dumps(params_new,indent=2),*params_to_values(params_new,specs)
 
-def update_low(audio_file,*args):
-    *values,specs,params_base=args
-    params_new=values_to_params(values,specs)
-    return *render_audio_from_params(audio_file,params_new),params_new,json.dumps(params_new,indent=2),*values
+def update_low(audio_file, *args):
+    """
+    Called when any low-level FX slider changes.
+    Updates the audio, FX JSON, and re-estimates mid-level Tone/Space sliders.
+    """
+    *values, specs, params_base = args
+    params_new = values_to_params(values, specs)
+
+    # Render updated audio
+    audio_out, spec_path = render_audio_from_params(audio_file, params_new)
+
+    # Re-estimate mid-level controls from low-level parameters
+    tone_est, space_est = estimate_mid_from_params(params_new)
+
+    # Return updated states
+    return (
+        audio_out,          # output_audio
+        spec_path,          # spec_img
+        params_new,         # state_params
+        json.dumps(params_new, indent=2),  # fx_json
+        tone_est,           # update Tone slider
+        space_est,          # update Space slider
+        *values,            # update all low-level sliders
+    )
 
 def scale_params_intensity(params_dict,alpha):
     scaled={}
@@ -240,8 +260,8 @@ with gr.Blocks(title="Text2FX — Unified Semantic FX", theme=gr.themes.Soft()) 
     for s in sliders:
         s.release(
             fn=update_low,
-            inputs=[audio_in,*sliders,state_specs,state_params],
-            outputs=[output_audio,spec_img,state_params,fx_json,*sliders],
+            inputs=[audio_in, *sliders, state_specs, state_params],
+            outputs=[output_audio, spec_img, state_params, fx_json, tone, space, *sliders],
         )
 
     save_btn.click(
