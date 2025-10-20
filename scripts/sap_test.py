@@ -7,7 +7,10 @@ Flow:
 3. Any change re-renders the processed output
 4. User can save/recall presets with intensity scaling (α)
 
-To do: right now, low level doesn't link to mid level
+To do: Maybe chance mid tiers to
+1. highs, mids, lows instead of dark/bright
+2. small, medium, large room instead of dry/spacious
+
 """
 
 import os, json, torch, numpy as np, matplotlib.pyplot as plt, librosa, librosa.display
@@ -212,7 +215,7 @@ def save_preset(params,name,presets):
 # Gradio UI
 # -------------------------------------------------------------------------
 with gr.Blocks(title="Text2FX — Unified Semantic FX", theme=gr.themes.Soft()) as demo:
-    gr.Markdown("## 🎧 Text2FX: Unified Semantic-to-Parametric FX Control (EQ + Reverb)")
+    gr.Markdown("## Text2FX: Unified Semantic-to-Parametric FX Control (EQ + Reverb)")
     SPECS=build_param_spec(CHANNEL)
     state_params=gr.State()
     state_specs=gr.State(SPECS)
@@ -220,21 +223,21 @@ with gr.Blocks(title="Text2FX — Unified Semantic FX", theme=gr.themes.Soft()) 
 
     audio_in=gr.Audio(sources=["upload"],type="filepath",label="🎵 Input Audio")
     text_in=gr.Textbox(value="warm and spacious",label="Text Prompt")
-    run_btn=gr.Button("🧠 Run Text2FX")
+    run_btn=gr.Button("Run Text2FX")
 
     output_audio=gr.Audio(label="Processed Output")
     fx_json=gr.Textbox(label="FX Parameters",lines=12)
     spec_img=gr.Image(label="Spectrogram")
 
-    with gr.Accordion("🎛️ Mid-Level Semantic Controls",open=True):
+    with gr.Accordion("Y: Mid-Level Semantic Controls",open=True):
         tone=gr.Slider(-1,1,0,0.01,label="Tone (Dark ↔ Bright)")
         space=gr.Slider(0,1,0.3,0.01,label="Space (Dry → Spacious)")
 
-    with gr.Accordion("🔧 Low-Level FX Parameters",open=False):
+    with gr.Accordion("XYZ Low-Level FX Parameters",open=False):
         sliders=[gr.Slider(pmin,pmax,default,label=f"{mod}.{pn}") for mod,pn,pmin,pmax,default in SPECS]
 
     preset_name=gr.Textbox(label="Preset Name",placeholder="e.g. WarmHallVocal")
-    save_btn=gr.Button("💾 Save Preset")
+    save_btn=gr.Button(">> Save Preset")
     preset_dropdown=gr.Dropdown(label="🎚️ Select Preset",interactive=True)
     alpha=gr.Slider(0,1,1.0,0.05,label="Preset Intensity (α)")
     apply_btn=gr.Button("Apply Preset")
