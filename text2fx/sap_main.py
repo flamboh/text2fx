@@ -273,12 +273,12 @@ def text2fx(
                     if freq_idx:
                         freqs = scaled[:, freq_idx]
                         freqs_sorted, _ = torch.sort(freqs, dim=-1)
-                        # Optionally clamp to physical [20 Hz, 20 kHz] normalized range
+                        # Clamping to physical [20 Hz, 20 kHz] normalized range
                         freqs_sorted = freqs_sorted.clamp(20 / 20000, 1.0)
                         # Replace the frequency section with sorted version
                         scaled[:, freq_idx] = freqs_sorted
 
-                        print(f"[Constraint] {module_name}: sorted {len(freq_idx)} freq params ascending.")
+                        # print(f"[Constraint] {module_name}: sorted {len(freq_idx)} freq params ascending.")
 
                 param_offset += num_params  # move to next module range
 

@@ -634,12 +634,22 @@ def detensor_dict(input_dict: dict) -> dict:
         {k: v.tolist() if isinstance(v, torch.Tensor) else v for k, v in value.items()} if isinstance(value, dict) else value for key, value in input_dict.items()}
     return output_dict
 
+# def flatten_single_item_lists(d):
+#     for key, subdict in d.items():
+#         for subkey, value in subdict.items():
+#             if isinstance(value, list) and len(value) == 1:
+#                 subdict[subkey] = value[0]
+#     return d
+
 def flatten_single_item_lists(d):
     for key, subdict in d.items():
         for subkey, value in subdict.items():
             if isinstance(value, list) and len(value) == 1:
                 subdict[subkey] = value[0]
+            elif isinstance(value, torch.Tensor) and value.numel() == 1:
+                subdict[subkey] = value.item()
     return d
+
 
 def save_dict_to_json(params_dict, save_path):
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
