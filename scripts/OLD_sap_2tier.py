@@ -152,7 +152,7 @@ with gr.Blocks(title="Text2FX DAW Demo", theme=gr.themes.Soft()) as demo:
     with gr.Row():
         audio_in = gr.Audio(sources=["upload"], type="filepath", label="🎵 Input Audio")
         text_in = gr.Textbox(value="warm and intimate", label="Text Prompt")
-        run_btn = gr.Button("🧠 Optimize (α=1.0)")
+        run_btn = gr.Button("Optimize (α=1.0)")
 
     with gr.Row():
         output_audio = gr.Audio(label="Processed Output")

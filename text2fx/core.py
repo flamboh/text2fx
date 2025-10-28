@@ -94,7 +94,7 @@ class Channel(torch.nn.Module):
     def forward(self, signal: AudioSignal, params: torch.Tensor)  -> AudioSignal:
 
         output = signal.clone().resample(self.sample_rate)
-        
+
         # Check for valid shape
         assert params.ndim == 2  # (n_batch, n_parameters)
         assert params.shape[-1] == self.num_params
@@ -114,32 +114,59 @@ class Channel(torch.nn.Module):
             
         return output.resample(signal.sample_rate)  # Restore original sample rate
 
-    def save_params_to_dict(self, params: torch.Tensor, save_path:str=None) -> dict:
-        """Save parameter tensors for each module to structured dictionaries.
+    def save_params_to_dict(self, params: torch.Tensor, assume_logits: bool = True) -> dict:
+        """
+        Convert a parameter tensor into a dict of real-world values per module.
 
         Args:
-            params (torch.Tensor): The parameter tensor.
+            params: (B, num_params) tensor. If assume_logits=True, values are unbounded
+                    (logits) and will be passed through sigmoid. If False, values are
+                    assumed already normalized in [0,1].
+            assume_logits: Whether to treat `params` as logits (apply sigmoid).
 
         Returns:
-            dict: Structured dictionary of parameter tensors for each module.
+            dict mapping module name -> dict of denormalized parameter values.
         """
         all_params = {}
         params_count = 0
+
         for m in self.modules:
-            # Extracting respective params for each module in Channel
-            _params = params[:, params_count: params_count + m.num_params]
+            _params = params[:, params_count : params_count + m.num_params]
             params_count += m.num_params
 
-            _params_normalized = torch.sigmoid(_params)
+            if assume_logits:
+                _params_normalized = torch.sigmoid(_params)
+            else:
+                _params_normalized = _params.clamp(0.0, 1.0)
 
             raw_param_dict = m.extract_param_dict(_params_normalized)
-            # breakpoint()
             denorm_param_dict = m.denormalize_param_dict(raw_param_dict)
-
-            # denorm_param_dict = {k: v.tolist() for k, v in denorm_param_dict.items()}
             all_params[m.__class__.__name__] = denorm_param_dict
 
         return all_params
+
+    def load_params_from_dict(self, param_dict):
+        """
+        Convert real-world parameter values to normalized [0,1] tensor for this channel.
+        Uses each module's .param_ranges to rescale.
+        """
+        norm_params = []
+
+        for m in self.modules:
+            for pname, (low, high) in m.param_ranges.items():
+                if pname in param_dict:
+                    val = param_dict[pname]
+                    # clamp & normalize
+                    norm = (val - low) / (high - low)
+                    norm = np.clip(norm, 0.0, 1.0)
+                    norm_params.append(norm)
+                else:
+                    # fallback to midpoint
+                    norm_params.append(0.5)
+
+        params = torch.tensor(norm_params, dtype=torch.float32).unsqueeze(0)
+        return params
+
 
 
 class ParametricEQ_40band(dasp_pytorch.modules.Processor):
@@ -289,35 +316,27 @@ def apply_audealize_single_word(input_audio_file: AudioSignal, text: Union[str, 
     channel = Channel(m40b)
     if isinstance(text, str):
         text = [text]    
-
     freq_gains_dict = get_settings_for_words(EQ_GAINS_PATH, text)
-    # Use GPU if available
 
     signal = AudioSignal(input_audio_file).to(DEVICE)
 
     for t in text:
-        param_single = torch.tensor(freq_gains_dict[t])*5 #make dict parameter
-            # print(f'got it: {freq_gains_dict[word]}')
-        params = param_single.expand(signal.batch_size, -1).to(DEVICE)
+        param_single = torch.tensor(freq_gains_dict[t])*5 #make dict parameter, matches json implementation
+        if param_single.ndim == 1:
+            param_single = param_single.unsqueeze(0)  # make shape (1, 40)
+        # params = param_single.expand(signal.batch_size, -1).to(DEVICE)
+        params = param_single.to(DEVICE)
 
         signal_effected= channel(signal, torch.sigmoid(params)).clone().detach().cpu()
-        export_sig(signal_effected, save_dir)
+        # export_sig(signal_effected, save_dir)
         
     return signal_effected
 
-# def load_examples(dir_path: Union[str,Path]) -> List[Path]:
-#     dir_path = Path(dir_path)  # Convert string to Path if necessary
-#     exts = ["mp3", "wav", "flac"]
-#     example_files = [list(dir_path.rglob(f"*.{e}")) for e in exts]
-#     example_files = sum(example_files, [])  # Trick to flatten list of lists
-#     return example_files
 
 def load_examples(dir_path: Union[str, Path]) -> List[Path]:
     dir_path = Path(dir_path)  # Convert string to Path if necessary
-    
     if dir_path.is_file():  # If it's a single file, return it as a list
         return [dir_path]
-    
     exts = ["mp3", "wav", "flac"]
     example_files = [list(dir_path.rglob(f"*.{e}")) for e in exts]
     example_files = sum(example_files, [])  # Trick to flatten list of lists
@@ -540,7 +559,7 @@ def preprocess_audio(audio_path_or_array: Union[torch.Tensor, str, Path, np.ndar
         raise ValueError("Input must be a file path, AudioSignal, tensor, or ndarray")
     
     # Standard processing: convert to mono, resample, ensure max normalization
-    sig = sig.to_mono().resample(SAMPLE_RATE).ensure_max_of_audio()
+    sig = sig.to_mono().resample(SAMPLE_RATE).normalize(-24)#.ensure_max_of_audio()
     
     # Apply salient excerpt if specified
     if salient_excerpt_duration:
@@ -613,6 +632,7 @@ def create_channel(fx_chain, sr=SAMPLE_RATE):
 def export_sig(out_sig: AudioSignal, save_path_or_dir: Union[str, Path], text: Union[str, List[str]] = None):
     # Ensure the directory exists
     save_path_or_dir = Path(save_path_or_dir)
+    out_sig = preprocess_audio(out_sig)
 
     if out_sig.batch_size == 1:
         save_path_or_dir.parent.mkdir(parents=True, exist_ok=True)

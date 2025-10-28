@@ -25,8 +25,11 @@ device = DEVICE #torch.device("cuda:0") if torch.cuda.is_available() else "cpu"
 
 def get_model(model_choice: str):
     if model_choice=="laion_clap":
-        from text2fx.laionclap import LAIONCLAPWrapper
-        model = LAIONCLAPWrapper()
+        # from text2fx.laionclap import LAIONCLAPWrapper
+        # model = LAIONCLAPWrapper(
+        import laion_clap
+        model = laion_clap.CLAP_Module(enable_fusion=False, device=DEVICE)
+        model.load_ckpt()  # Downloads pretrained checkpoint
     elif model_choice == "ms_clap":
         from text2fx.msclap import MSCLAPWrapper
         model = MSCLAPWrapper()
@@ -162,9 +165,12 @@ def text2fx(
             all_embeds.append(embeds)
         embedding_target = torch.cat(all_embeds, dim=0).detach()     # Shape: (batch_size, embedding_dim)
         embedding_target = torch.nn.functional.normalize(embedding_target, dim=-1)
+        use_neg = (criterion == "cosine-sim")
+
     else:
         print("Using provided custom embedding target...")
         embedding_target = torch.nn.functional.normalize(custom_embedding_target.to(device), dim=-1)
+        use_neg = False  # Assume no negative embeddings when using custom target
 
 
     ### ==== INPUT ADUIO EMB =====
@@ -172,7 +178,7 @@ def text2fx(
     audio_in_emb = torch.nn.functional.normalize(audio_in_emb, dim=-1)
 
     # ====== NEGATIVE ANCHOR EMBED ======
-    if criterion == "cosine-sim":
+    if criterion == "cosine-sim" and use_neg:
         neg_templates = ["not {}", "the opposite of {}", "definitely not {}"]
         neg_embeds = []
         for t in text:
@@ -229,14 +235,16 @@ def text2fx(
         elif criterion == "standard": #is neg dot product loss aims to minimize the dot prod b/w dissimilar items, no direction intake
             batch_loss = - (embedding_effected * embedding_target).sum(dim=-1)
 
-        elif criterion == "cosine-sim":
+        elif criterion == "cosine-sim" and use_neg:
             pos_sim = torch.cosine_similarity(embedding_effected, embedding_target, dim=-1)
             neg_sim = torch.cosine_similarity(embedding_effected, embedding_neg, dim=-1)
             margin = 0.2
             batch_loss = (1 - pos_sim) + torch.relu(neg_sim - margin)
 
         else:
-            raise ValueError(f"Criterion {criterion} not recognized")
+            batch_loss = 1 - torch.cosine_similarity(embedding_effected, embedding_target, dim=-1)
+
+            # raise ValueError(f"Criterion {criterion} not recognized")
         
         # === PERCEPTUAL LOSS?? AS A REGULARIZER?? ===
         lambda_spec = 0.05

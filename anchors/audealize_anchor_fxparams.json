@@ -1,0 +1,156 @@
+{
+  "warm": {
+    "ParametricEQ": {
+      "low_shelf_gain_db": -1.2212295532226562,
+      "low_shelf_cutoff_freq": 910.3462524414062,
+      "low_shelf_q_factor": 3.6786041259765625,
+      "band0_gain_db": -12.037521362304688,
+      "band0_cutoff_freq": 1055.798828125,
+      "band0_q_factor": 1.085264801979065,
+      "band1_gain_db": 5.877725601196289,
+      "band1_cutoff_freq": 5456.078125,
+      "band1_q_factor": 1.8466589450836182,
+      "band2_gain_db": 2.1967105865478516,
+      "band2_cutoff_freq": 10304.1953125,
+      "band2_q_factor": 1.8000102043151855,
+      "band3_gain_db": -4.691617965698242,
+      "band3_cutoff_freq": 17218.826171875,
+      "band3_q_factor": 3.941783905029297,
+      "high_shelf_gain_db": 6.184730529785156,
+      "high_shelf_cutoff_freq": 13833.865234375,
+      "high_shelf_q_factor": 1.0903708934783936
+    }
+  },
+  "bright": {
+    "ParametricEQ": {
+      "low_shelf_gain_db": -8.495726585388184,
+      "low_shelf_cutoff_freq": 726.9546508789062,
+      "low_shelf_q_factor": 1.376124382019043,
+      "band0_gain_db": -1.0508365631103516,
+      "band0_cutoff_freq": 927.1046142578125,
+      "band0_q_factor": 2.598350763320923,
+      "band1_gain_db": 8.755790710449219,
+      "band1_cutoff_freq": 4987.7255859375,
+      "band1_q_factor": 0.9873726963996887,
+      "band2_gain_db": -4.980288505554199,
+      "band2_cutoff_freq": 9998.1494140625,
+      "band2_q_factor": 4.357000827789307,
+      "band3_gain_db": -8.562997817993164,
+      "band3_cutoff_freq": 17068.5234375,
+      "band3_q_factor": 4.4528913497924805,
+      "high_shelf_gain_db": 2.6436119079589844,
+      "high_shelf_cutoff_freq": 14974.4755859375,
+      "high_shelf_q_factor": 4.252910614013672
+    }
+  },
+  "harsh": {
+    "ParametricEQ": {
+      "low_shelf_gain_db": -6.717355728149414,
+      "low_shelf_cutoff_freq": 795.2316284179688,
+      "low_shelf_q_factor": 1.6171308755874634,
+      "band0_gain_db": -4.755926132202148,
+      "band0_cutoff_freq": 1123.2354736328125,
+      "band0_q_factor": 4.070539951324463,
+      "band1_gain_db": 14.414543151855469,
+      "band1_cutoff_freq": 5263.1611328125,
+      "band1_q_factor": 0.6743481755256653,
+      "band2_gain_db": 13.224964141845703,
+      "band2_cutoff_freq": 10314.353515625,
+      "band2_q_factor": 0.9073166251182556,
+      "band3_gain_db": 13.174373626708984,
+      "band3_cutoff_freq": 17241.69921875,
+      "band3_q_factor": 3.4472854137420654,
+      "high_shelf_gain_db": 6.961021423339844,
+      "high_shelf_cutoff_freq": 13888.763671875,
+      "high_shelf_q_factor": 2.3208067417144775
+    }
+  },
+  "soft": {
+    "ParametricEQ": {
+      "low_shelf_gain_db": -2.0560684204101562,
+      "low_shelf_cutoff_freq": 900.3350830078125,
+      "low_shelf_q_factor": 2.8114430904388428,
+      "band0_gain_db": -14.183635711669922,
+      "band0_cutoff_freq": 1005.5211791992188,
+      "band0_q_factor": 0.7138793468475342,
+      "band1_gain_db": -1.2090072631835938,
+      "band1_cutoff_freq": 4896.1455078125,
+      "band1_q_factor": 2.9943881034851074,
+      "band2_gain_db": 0.4671001434326172,
+      "band2_cutoff_freq": 9930.9189453125,
+      "band2_q_factor": 3.0045528411865234,
+      "band3_gain_db": -2.230762481689453,
+      "band3_cutoff_freq": 16370.86328125,
+      "band3_q_factor": 3.273371458053589,
+      "high_shelf_gain_db": 6.193912506103516,
+      "high_shelf_cutoff_freq": 12461.7353515625,
+      "high_shelf_q_factor": 1.20017671585083
+    }
+  },
+  "cold": {
+    "ParametricEQ": {
+      "low_shelf_gain_db": 0.5526275634765625,
+      "low_shelf_cutoff_freq": 975.2451782226562,
+      "low_shelf_q_factor": 3.0671443939208984,
+      "band0_gain_db": -5.852599143981934,
+      "band0_cutoff_freq": 1006.8433227539062,
+      "band0_q_factor": 1.5639877319335938,
+      "band1_gain_db": -0.5935840606689453,
+      "band1_cutoff_freq": 4897.734375,
+      "band1_q_factor": 3.388401508331299,
+      "band2_gain_db": 8.62685775756836,
+      "band2_cutoff_freq": 9932.6640625,
+      "band2_q_factor": 0.9361403584480286,
+      "band3_gain_db": -2.6069812774658203,
+      "band3_cutoff_freq": 16579.2109375,
+      "band3_q_factor": 3.201347827911377,
+      "high_shelf_gain_db": 10.11727523803711,
+      "high_shelf_cutoff_freq": 13222.203125,
+      "high_shelf_q_factor": 1.1367090940475464
+    }
+  },
+  "hollow": {
+    "ParametricEQ": {
+      "low_shelf_gain_db": 2.3752307891845703,
+      "low_shelf_cutoff_freq": 709.2083129882812,
+      "low_shelf_q_factor": 3.7307097911834717,
+      "band0_gain_db": -2.5741024017333984,
+      "band0_cutoff_freq": 777.4064331054688,
+      "band0_q_factor": 3.3272287845611572,
+      "band1_gain_db": -10.001006126403809,
+      "band1_cutoff_freq": 4183.7568359375,
+      "band1_q_factor": 2.001878261566162,
+      "band2_gain_db": 4.331897735595703,
+      "band2_cutoff_freq": 9723.2314453125,
+      "band2_q_factor": 1.877928614616394,
+      "band3_gain_db": -2.474790573120117,
+      "band3_cutoff_freq": 16196.904296875,
+      "band3_q_factor": 3.175488233566284,
+      "high_shelf_gain_db": 8.430076599121094,
+      "high_shelf_cutoff_freq": 12463.9287109375,
+      "high_shelf_q_factor": 1.210974931716919
+    }
+  },
+  "muddy": {
+    "ParametricEQ": {
+      "low_shelf_gain_db": 2.0165176391601562,
+      "low_shelf_cutoff_freq": 967.2667846679688,
+      "low_shelf_q_factor": 2.5800085067749023,
+      "band0_gain_db": 0.39499473571777344,
+      "band0_cutoff_freq": 1012.9410400390625,
+      "band0_q_factor": 3.259852170944214,
+      "band1_gain_db": 12.645133972167969,
+      "band1_cutoff_freq": 4920.0224609375,
+      "band1_q_factor": 1.0921121835708618,
+      "band2_gain_db": -6.376447677612305,
+      "band2_cutoff_freq": 9949.1328125,
+      "band2_q_factor": 4.34602165222168,
+      "band3_gain_db": 9.518455505371094,
+      "band3_cutoff_freq": 17444.640625,
+      "band3_q_factor": 4.376089096069336,
+      "high_shelf_gain_db": 1.2871284484863281,
+      "high_shelf_cutoff_freq": 14265.3310546875,
+      "high_shelf_q_factor": 3.598672866821289
+    }
+  }
+}
