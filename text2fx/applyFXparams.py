@@ -143,10 +143,6 @@ def apply_fx_to_sig(
                 
     # depending on exact json dict output, this will change
     print(f"Params dict: {params_dict}")
-    # params_list = torch.tensor([value for effect_params in params_dict.values() for value in effect_params.values()])
-    # if in_sig.batch_size != 1:
-    #     params_list = params_list.transpose(0, 1)
-    # params = params_list.expand(in_sig.batch_size, -1).to(DEVICE) #shape = (n_batch, n_params)
 
 
     params_list = torch.tensor(
@@ -158,11 +154,13 @@ def apply_fx_to_sig(
     batch_size = in_sig.batch_size
     params = params_list.view(1, -1).expand(batch_size, -1).to(DEVICE)
 
-
-    out_sig = fx_channel(in_sig.clone().to(DEVICE), params).normalize(-24)
+    
+    out_sig = fx_channel(in_sig.clone().to(DEVICE), params)
     if export_path:
         tc.export_sig(out_sig.clone().detach().cpu(), export_path)
-    return tc.preprocess_audio(out_sig.detach().cpu(), force_mono=False)
+
+    # return tc.preprocess_audio(out_sig.detach().cpu())
+    return out_sig.to_mono().normalize(-24).detach().cpu()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Apply effects to an audio file or dir of audio files based on parameters in a JSON file and export the processed file.")

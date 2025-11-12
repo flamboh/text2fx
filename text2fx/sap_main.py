@@ -110,7 +110,7 @@ def text2fx(
     clap = get_model(model_name) #default to ms_clap, though laion_clap might be better....
     print(f"Criterion: {criterion}")
 
-    sig = preprocess_audio(sig_in, force_mono=False).to(device) #preprocessing initial sample (entire sample)
+    sig = preprocess_audio(sig_in).to(device) #preprocessing initial sample (entire sample)
     # sig = preprocess_audio(sig_in, 5).to(device) #for fast version, taking 3s excerpt
 
     # FX parameter initialization
@@ -313,9 +313,8 @@ def text2fx(
     # Play final signal with optimized effects parameters
     clean_sig = preprocess_audio(sig_in).to(device) #taking full input sample 
     out_sig = channel(clean_sig.clone(), torch.sigmoid(params)).clone().detach().cpu()
-    out_sig = preprocess_audio(out_sig)  
+    out_sig = preprocess_audio(out_sig)  # ensure post-process
     out_params = params.detach().cpu() #optimized output FXparams
     out_params_dict = channel.save_params_to_dict(out_params) #mapping back to FX ranges
-
 
     return out_sig, out_params, out_params_dict
