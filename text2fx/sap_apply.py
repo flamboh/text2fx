@@ -54,7 +54,7 @@ def main(audio_path: Union[str, Path, AudioSignal],
     # in_sig = tc.preprocess_audio(audio_path).to(DEVICE)
 
     # print('text2fx on 3s salient_excerpt')
-    in_sig = tc.preprocess_audio(audio_path, salient_excerpt_duration=3).to(DEVICE)
+    in_sig = tc.preprocess_audio(audio_path, salient_excerpt_duration=3, force_mono=False).to(DEVICE)
 
 
     # Create FX channel

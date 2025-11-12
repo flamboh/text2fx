@@ -110,7 +110,7 @@ def text2fx(
     clap = get_model(model_name) #default to ms_clap, though laion_clap might be better....
     print(f"Criterion: {criterion}")
 
-    sig = preprocess_audio(sig_in).to(device) #preprocessing initial sample (entire sample)
+    sig = preprocess_audio(sig_in, force_mono=False).to(device) #preprocessing initial sample (entire sample)
     # sig = preprocess_audio(sig_in, 5).to(device) #for fast version, taking 3s excerpt
 
     # FX parameter initialization
