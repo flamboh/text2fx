@@ -39,8 +39,8 @@ class LAIONCLAPWrapper(AbstractCLAPWrapper):
         self.CLAP_SAMPLE_RATE = 48_000
         CLAP_PRETRAINED_DIR = PRETRAINED_DIR / "clap"
         CLAP_DOWNLOAD_LINK = 'https://huggingface.co/lukewys/laion_clap/resolve/main/'
-        CLAP_MODEL_IDX = 1
-        CLAP_AUDIO_MODEL_IDX = 2
+        CLAP_MODEL_IDX = 4 # music
+        CLAP_AUDIO_MODEL_IDX = 0 # base
         ENABLE_FUSION = False  # Fusion currently has issues
 
         # Ensure that weights are downloaded
@@ -59,7 +59,11 @@ class LAIONCLAPWrapper(AbstractCLAPWrapper):
         )
 
         # Load checkpoint with DataParallel prefix handling
-        ckpt_data = torch.load(ckpt_pth, map_location=DEVICE)
+        import numpy.core.multiarray
+        torch.serialization.add_safe_globals([numpy.core.multiarray.scalar])
+
+        ckpt_data = torch.load(ckpt_pth, map_location=DEVICE, weights_only=False)
+        # ckpt_data = torch.load(ckpt_pth, map_location=DEVICE)
         
         # Remove 'module.' prefix from DataParallel checkpoints
         state_dict = ckpt_data['state_dict']

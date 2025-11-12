@@ -535,7 +535,7 @@ def convert_to_tensors(converted_settings):
 
 def preprocess_audio(audio_path_or_array: Union[torch.Tensor, str, Path, np.ndarray, AudioSignal], 
                      salient_excerpt_duration: Optional[int] = None, 
-                     sample_rate: Optional[int] = None) -> AudioSignal:
+                     sample_rate: Optional[int] = None, force_mono=True) -> AudioSignal:
     """Preprocesses an audio input (file path, tensor, ndarray, or AudioSignal).
     
     Args:
@@ -558,9 +558,12 @@ def preprocess_audio(audio_path_or_array: Union[torch.Tensor, str, Path, np.ndar
     else:
         raise ValueError("Input must be a file path, AudioSignal, tensor, or ndarray")
     
-    # Standard processing: convert to mono, resample, ensure max normalization
-    sig = sig.to_mono().resample(SAMPLE_RATE).normalize(-24)#.ensure_max_of_audio()
-    
+    # Standard processing:resample, ensure max normalization
+    # sig = sig.to_mono().resample(SAMPLE_RATE).normalize(-24)#ensure_max_of_audio()
+    if force_mono:
+        sig = sig.to_mono()
+    sig = sig.resample(SAMPLE_RATE).normalize(-24)
+
     # Apply salient excerpt if specified
     if salient_excerpt_duration:
         return at_salient_excerpt(sig, duration=salient_excerpt_duration, loudness_cutoff=0)

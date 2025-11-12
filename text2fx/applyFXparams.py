@@ -37,7 +37,7 @@ def is_normalized_dict(param_dict):
     return all(0.0 <= v <= 1.0 for v in vals)
 
 def normalize_param_dict(param_dict: dict, channel) -> dict:
-    """Given parameters on (0,1) restore them to the ranges expected by the processor.
+    """normalizes full range to between 0 and 1 for the channel
 
     Args:
         param_dict (dict): Dictionary of parameter tensors on (0,1) for each module.
@@ -129,8 +129,9 @@ def apply_fx_to_sig(
         params_dict = normalize_param_dict(params_dict, fx_channel)
     else:
         print("[apply_fx_to_sig] Detected normalized parameters, skipping normalization.")
-        
-    # --- Clamp all normalized parameters into [0,1] to avoid DASP range errors ---
+    
+    print(f"Params dict: {params_dict}")
+    # # --- Clamp all normalized parameters into [0,1] to avoid DASP range errors ---
     for fx_name, fx_params in params_dict.items():
         for k, v in fx_params.items():
             if isinstance(v, (int, float)):
@@ -141,15 +142,27 @@ def apply_fx_to_sig(
                 fx_params[k] = [max(0.0, min(1.0, v[0]))]
                 
     # depending on exact json dict output, this will change
-    params_list = torch.tensor([value for effect_params in params_dict.values() for value in effect_params.values()])
-    if in_sig.batch_size != 1:
-        params_list = params_list.transpose(0, 1)
-    params = params_list.expand(in_sig.batch_size, -1).to(DEVICE) #shape = (n_batch, n_params)
+    print(f"Params dict: {params_dict}")
+    # params_list = torch.tensor([value for effect_params in params_dict.values() for value in effect_params.values()])
+    # if in_sig.batch_size != 1:
+    #     params_list = params_list.transpose(0, 1)
+    # params = params_list.expand(in_sig.batch_size, -1).to(DEVICE) #shape = (n_batch, n_params)
 
-    out_sig = fx_channel(in_sig.clone().to(DEVICE), params).ensure_max_of_audio()#normalize(-24)
+
+    params_list = torch.tensor(
+        [value for effect_params in params_dict.values() for value in effect_params.values()],
+        dtype=torch.float32
+    )
+
+    # Ensure shape: (batch_size, n_params)
+    batch_size = in_sig.batch_size
+    params = params_list.view(1, -1).expand(batch_size, -1).to(DEVICE)
+
+
+    out_sig = fx_channel(in_sig.clone().to(DEVICE), params).normalize(-24)
     if export_path:
         tc.export_sig(out_sig.clone().detach().cpu(), export_path)
-    return tc.preprocess_audio(out_sig.detach().cpu())
+    return tc.preprocess_audio(out_sig.detach().cpu(), force_mono=False)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Apply effects to an audio file or dir of audio files based on parameters in a JSON file and export the processed file.")
