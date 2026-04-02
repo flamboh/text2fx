@@ -42,6 +42,7 @@ def main(audio_source: Union[str, Path], #can be path to single file or dir of f
          export_dir: Union[str, Path] = None, #optional
          learning_rate: float = 0.001,
          params_init_type: str = 'random',
+         param_reg_weight: float = 0.0,
          roll_amt: Optional[int] = None,
          n_iters: int = 600,
          criterion: str = 'cosine-sim',
@@ -76,6 +77,7 @@ def main(audio_source: Union[str, Path], #can be path to single file or dir of f
         channel=fx_channel,
         criterion=criterion, 
         params_init_type=params_init_type,
+        param_reg_weight=param_reg_weight,
         lr=learning_rate,
         n_iters=n_iters,
         roll_amt=roll_amt,
@@ -112,10 +114,11 @@ if __name__ == "__main__":
     parser.add_argument('--fx_chain', type=str, nargs='+', default='eq', help='List of FX chain elements.')
     parser.add_argument('--export_dir', type=str, default = None, help='Directory to save processed outputs.')
     parser.add_argument('--learning_rate', type=float, default=0.001, help='Learning rate for optimization.')
-    parser.add_argument('--params_init_type', type=str, default='random', help='Parameter initialization type.')
-    parser.add_argument('--roll_amt', type=int, default=None, help='Roll amount for augmentation.')
+    parser.add_argument('--params_init_type', type=str, default='random', choices=['zeros', 'random', 'super_random'], help='Parameter initialization type.')
+    parser.add_argument('--param_reg_weight', type=float, default=0.0, help='Optional regularization weight for keeping parameters near neutral.')
+    parser.add_argument('--roll_amt', type=int, default=None, help='Roll amount for augmentation. Random full-signal rolling is used when omitted.')
     parser.add_argument('--n_iters', type=int, default=600, help='Number of iterations for optimization.')
-    parser.add_argument('--criterion', type=str, default='cosine-sim', help='Loss criterion for optimization.')
+    parser.add_argument('--criterion', type=str, default='cosine-sim', choices=['directional_loss', 'cosine-sim', 'standard'], help='Loss criterion for optimization.')
     parser.add_argument('--model', type=str, default='ms_clap', help='Model name for text-to-FX processing.')
 
     args = parser.parse_args()
@@ -128,6 +131,7 @@ if __name__ == "__main__":
         export_dir=args.export_dir,
         learning_rate=args.learning_rate,
         params_init_type=args.params_init_type,
+        param_reg_weight=args.param_reg_weight,
         roll_amt=args.roll_amt,
         n_iters=args.n_iters,
         criterion=args.criterion,

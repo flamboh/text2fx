@@ -96,6 +96,7 @@ def text2fx_paper(
     criterion: str = "standard", 
     save_dir: str = None, # figure out a save path automatically,
     params_init_type: str = "random",
+    param_reg_weight: float = 0.0,
     # seed_i: int = 0,
     roll_amt: int = None,
     export_audio: bool = False,
@@ -146,6 +147,7 @@ def text2fx_paper(
             log.write(f"Number of Iterations: {n_iters}\n")
             log.write(f"Criterion: {criterion}\n")
             log.write(f"Params Initialization Type: {params_init_type}\n")
+            log.write(f"Param Regularization Weight: {param_reg_weight}\n")
             log.write(f"Starting Params Values: {params.data.cpu().numpy()}\n")
             log.write(f"Starting Params Values (post sigmoid): {torch.sigmoid(params).data.cpu().numpy()}\n")
 
@@ -245,6 +247,8 @@ def text2fx_paper(
             raise ValueError(f"Criterion {criterion} not recognized")
         
         loss = batch_loss.mean()
+        if param_reg_weight:
+            loss = loss + (param_reg_weight * params.square().mean())
         if writer: 
             writer.add_scalar("loss", loss.item(), n)
 
