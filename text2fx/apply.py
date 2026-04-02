@@ -41,6 +41,7 @@ def main(audio_path: Union[str, Path, AudioSignal],
          export_dir: str = None,
          learning_rate: float = 0.01,
          params_init_type: str = 'random',
+         param_reg_weight: float = 0.0,
          roll_amt: Optional[int] = None,
          n_iters: int = 600,
          criterion: str = 'cosine-sim',
@@ -81,6 +82,7 @@ def main(audio_path: Union[str, Path, AudioSignal],
         criterion=criterion, 
         save_dir=save_dir,
         params_init_type=params_init_type,
+        param_reg_weight=param_reg_weight,
         lr=learning_rate,
         n_iters=n_iters,
         roll_amt=roll_amt,
@@ -112,10 +114,11 @@ if __name__ == "__main__":
     parser.add_argument("text_target", type=str, default='warm', help="Text description to match.")
     parser.add_argument("--export_dir", type=str, default=None, help="Dir Path to save optimized audio file.")
     parser.add_argument("--learning_rate", type=float, default=0.001, help="Learning rate for optimization.")
-    parser.add_argument("--params_init_type", type=str, default='random', choices=['random', 'default'], help="Parameter initialization type.")
-    parser.add_argument("--roll_amt", type=int, default=None, help="Amount to roll.")
+    parser.add_argument("--params_init_type", type=str, default='random', choices=['zeros', 'random', 'super_random'], help="Parameter initialization type.")
+    parser.add_argument("--param_reg_weight", type=float, default=0.0, help="Optional regularization weight for keeping parameters near neutral.")
+    parser.add_argument("--roll_amt", type=int, default=None, help="Amount to roll. Random full-signal rolling is used when omitted.")
     parser.add_argument("--n_iters", type=int, default=600, help="Number of optimization iterations.")
-    parser.add_argument("--criterion", type=str, default='cosine-sim', help="Optimization criterion.")
+    parser.add_argument("--criterion", type=str, default='cosine-sim', choices=['directional_loss', 'cosine-sim', 'standard'], help="Optimization criterion.")
     parser.add_argument("--model", type=str, default='ms_clap', help="Model name.")
     parser.add_argument("--detailed_log", action="store_true", help="Enable detailed logging every 100 iterations.")
 
@@ -128,6 +131,7 @@ if __name__ == "__main__":
          args.export_dir,
          args.learning_rate, 
          args.params_init_type, 
+         args.param_reg_weight,
          args.roll_amt,
          args.n_iters, 
          args.criterion, 

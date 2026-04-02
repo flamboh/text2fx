@@ -3,6 +3,7 @@ from tqdm import tqdm
 import datetime
 import unicodedata
 import re
+from typing import Optional
 
 import torch
 import torchaudio.transforms as T
@@ -25,8 +26,14 @@ from text2fx.constants import PRETRAINED_DIR, DEVICE
 """ utility wrapper around MS CLAP model! """
 class MSCLAPWrapper(AbstractCLAPWrapper):
 
-    def __init__(self):
-        self.clap_model = CLAP(version = '2023', use_cuda=True)
+    def __init__(self, use_cuda: Optional[bool] = None, crop_mode: str = "random"):
+        if use_cuda is None:
+            use_cuda = torch.cuda.is_available()
+        if crop_mode not in {"center", "random"}:
+            raise ValueError(f"Unsupported crop_mode: {crop_mode}")
+
+        self.crop_mode = crop_mode
+        self.clap_model = CLAP(version='2023', use_cuda=use_cuda)
 
     #testing just the clap_model.load_audio() !!
     def resample(self, signal: AudioSignal, resample=True):
@@ -48,22 +55,22 @@ class MSCLAPWrapper(AbstractCLAPWrapper):
 
     def audio_trim(self, audio_time_series, audio_duration, sample_rate):
         audio_time_series = audio_time_series.squeeze(0).squeeze(0)
+        target_num_samples = audio_duration * sample_rate
 
         #if audio duration is shorter than 7 seconds, repeat samples
-        if audio_duration*sample_rate >= audio_time_series.shape[0]: 
-            repeat_factor = int(np.ceil((audio_duration*sample_rate) /
-                                        audio_time_series.shape[0]))
+        if target_num_samples >= audio_time_series.shape[0]:
+            repeat_factor = int(np.ceil(target_num_samples / audio_time_series.shape[0]))
             # Repeat audio_time_series by repeat_factor to match audio_duration
             audio_time_series = audio_time_series.repeat(repeat_factor)
             # remove excess part of audio_time_series
-            audio_time_series = audio_time_series[0:audio_duration*sample_rate]
+            audio_time_series = audio_time_series[0:target_num_samples]
         else:
-        # audio_time_series is longer than predefined audio duration (7s),
-        # so audio_time_series is trimmed
-            start_index = random.randrange(
-                audio_time_series.shape[0] - audio_duration*sample_rate)
-            audio_time_series = audio_time_series[start_index:start_index +
-                                                audio_duration*sample_rate]
+            max_start = audio_time_series.shape[0] - target_num_samples
+            if self.crop_mode == "random":
+                start_index = random.randrange(max_start)
+            else:
+                start_index = max_start // 2
+            audio_time_series = audio_time_series[start_index:start_index + target_num_samples]
         return audio_time_series.unsqueeze(0).unsqueeze(0).float()
 
     def preprocess_audio(self, signal: AudioSignal) -> AudioSignal: #returns an AudioSignal
@@ -96,5 +103,3 @@ class MSCLAPWrapper(AbstractCLAPWrapper):
     @property
     def sample_rate(self):
         return self.clap_model.args.sampling_rate
-
-
