@@ -46,7 +46,8 @@ def main(audio_source: Union[str, Path], #can be path to single file or dir of f
          roll_amt: Optional[int] = None,
          n_iters: int = 600,
          criterion: str = 'cosine-sim',
-         model: str = 'ms_clap') -> Tuple[AudioSignal, torch.Tensor, dict]:
+         model: str = 'ms_clap',
+         random_seed: Optional[int] = 0) -> Tuple[AudioSignal, torch.Tensor, dict]:
     
     audio_file_paths = tc.load_examples(audio_source)
     descriptor_list = tc.load_words(descriptions_source)
@@ -81,6 +82,7 @@ def main(audio_source: Union[str, Path], #can be path to single file or dir of f
         lr=learning_rate,
         n_iters=n_iters,
         roll_amt=roll_amt,
+        random_seed=random_seed,
     )
     # out_params_dict = fx_channel.save_params_to_dict(sig_effected_params)
     if len(descriptor_list) == 1 and len(audio_file_paths) != 1:
@@ -120,6 +122,7 @@ if __name__ == "__main__":
     parser.add_argument('--n_iters', type=int, default=600, help='Number of iterations for optimization.')
     parser.add_argument('--criterion', type=str, default='cosine-sim', choices=['directional_loss', 'cosine-sim', 'standard'], help='Loss criterion for optimization.')
     parser.add_argument('--model', type=str, default='ms_clap', help='Model name for text-to-FX processing.')
+    parser.add_argument('--random-seed', type=int, default=0, help='Seed parameter initialization, rolling, and CLAP cropping.')
 
     args = parser.parse_args()
     descriptions = [desc.strip() for desc in args.descriptions_source.split(',')] if args.descriptions_source else []
@@ -135,5 +138,6 @@ if __name__ == "__main__":
         roll_amt=args.roll_amt,
         n_iters=args.n_iters,
         criterion=args.criterion,
-        model=args.model
+        model=args.model,
+        random_seed=args.random_seed
     )

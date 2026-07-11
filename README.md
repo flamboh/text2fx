@@ -64,6 +64,28 @@ python -m text2fx.apply assets/guitar.wav eq 'warm like a hug' \
     --criterion cosine-sim 
 ```
 
+### Reproducing the public guitar example
+
+The website's clean guitar is the 10.243-second `assets/guitar_full.wav`.
+`assets/guitar.wav` is only its first 2.009 seconds; MS-CLAP repeats that short
+excerpt to fill its seven-second input window, so it is not an equivalent
+fixture. Use a fixed seed when comparing runs:
+
+```
+python -m text2fx.apply assets/guitar_full.wav eq bright \
+    --export_dir experiments/bright/ \
+    --learning_rate 0.01 \
+    --params_init_type random \
+    --n_iters 601 \
+    --criterion cosine-sim \
+    --random-seed 0
+```
+
+The public `guitar_600.wav` is an iteration-600 checkpoint from a 650-step
+unseeded research run, not the output of the README's original two-second
+example. Its original random state was not recorded, so its exact optimizer
+trajectory cannot be regenerated from the published artifacts alone.
+
 ### Batching: n audio files AND/OR n text descriptors
 **Case 1: multiple audio files, single text_target**
 **note**: the comma `,` is used to separate multiple text targets. 

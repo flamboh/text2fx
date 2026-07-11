@@ -46,7 +46,8 @@ def main(audio_path: Union[str, Path, AudioSignal],
          n_iters: int = 600,
          criterion: str = 'cosine-sim',
          model: str = 'ms_clap',
-         detailed_log:bool = False) -> Tuple[AudioSignal, torch.Tensor, dict]:
+         detailed_log:bool = False,
+         random_seed: Optional[int] = 0) -> Tuple[AudioSignal, torch.Tensor, dict]:
 
     # Preprocess full audio from path, return AudioSignal
     print('text2fx on full sig')
@@ -87,6 +88,7 @@ def main(audio_path: Union[str, Path, AudioSignal],
         n_iters=n_iters,
         roll_amt=roll_amt,
         detailed_log=detailed_log,
+        random_seed=random_seed,
     )
 
     if export_dir:
@@ -121,6 +123,7 @@ if __name__ == "__main__":
     parser.add_argument("--criterion", type=str, default='cosine-sim', choices=['directional_loss', 'cosine-sim', 'standard'], help="Optimization criterion.")
     parser.add_argument("--model", type=str, default='ms_clap', help="Model name.")
     parser.add_argument("--detailed_log", action="store_true", help="Enable detailed logging every 100 iterations.")
+    parser.add_argument("--random-seed", type=int, default=0, help="Seed parameter initialization, rolling, and CLAP cropping.")
 
 
     args = parser.parse_args()
@@ -136,4 +139,5 @@ if __name__ == "__main__":
          args.n_iters, 
          args.criterion, 
          args.model,
-         args.detailed_log)
+         args.detailed_log,
+         args.random_seed)

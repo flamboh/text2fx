@@ -3,11 +3,12 @@ from tqdm import tqdm
 
 import torch
 import numpy as np
+import random
 import audiotools as at
 import dasp_pytorch
 from audiotools import AudioSignal
 
-from typing import Union, List
+from typing import Union, List, Optional
 
 from torch.utils.tensorboard import SummaryWriter
 import json
@@ -28,6 +29,17 @@ python -m text2fx --input_audio "assets/speech_examples/VCTK_p225_001_mic1.flac"
                  --
 """
 device = DEVICE #torch.device("cuda:0") if torch.cuda.is_available() else "cpu"
+
+
+def seed_runtime(seed: Optional[int]) -> None:
+    """Seed every RNG used by parameter initialization and audio augmentation."""
+    if seed is None:
+        return
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
 
 
 def get_model(model_choice: str):
@@ -84,9 +96,13 @@ def text2fx(
     detailed_log: bool = False,
     export_audio: bool = False,
     log_tensorboard: bool = False,
+    random_seed: Optional[int] = 0,
 ):
 
     clap = get_model(model_name)
+    # Model construction can consume RNG state. Seed afterwards so cold and
+    # cached-model runs start optimization from the same state.
+    seed_runtime(random_seed)
 
     sig = preprocess_audio(sig_in).to(device) #preprocessing initial sample (entire sample)
     # print("taking 3s sample")
@@ -138,6 +154,7 @@ def text2fx(
             log.write(f"Criterion: {criterion}\n")
             log.write(f"Params Initialization Type: {params_init_type}\n")
             log.write(f"Param Regularization Weight: {param_reg_weight}\n")
+            log.write(f"Random Seed: {random_seed}\n")
             log.write(f"Starting Params Values: {params.data.cpu().numpy()}\n")
             log.write(f"Starting Params Values (post sigmoid): {torch.sigmoid(params).data.cpu().numpy()}\n")
             log.write(f"Custom roll?: {roll_amt}\n")
