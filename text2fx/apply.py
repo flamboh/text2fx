@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Union, List, Optional, Tuple
+from typing import Callable, Union, List, Optional, Tuple
 import torch
 
 from audiotools import AudioSignal
@@ -47,7 +47,9 @@ def main(audio_path: Union[str, Path, AudioSignal],
          criterion: str = 'cosine-sim',
          model: str = 'ms_clap',
          detailed_log:bool = False,
-         random_seed: Optional[int] = 0) -> Tuple[AudioSignal, torch.Tensor, dict]:
+         random_seed: Optional[int] = 0,
+         progress_callback: Optional[Callable[[int, int, dict], None]] = None,
+         ) -> Tuple[AudioSignal, torch.Tensor, dict]:
 
     # Preprocess full audio from path, return AudioSignal
     print('text2fx on full sig')
@@ -89,6 +91,7 @@ def main(audio_path: Union[str, Path, AudioSignal],
         roll_amt=roll_amt,
         detailed_log=detailed_log,
         random_seed=random_seed,
+        progress_callback=progress_callback,
     )
 
     if export_dir:

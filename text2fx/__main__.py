@@ -8,7 +8,7 @@ import audiotools as at
 import dasp_pytorch
 from audiotools import AudioSignal
 
-from typing import Union, List, Optional
+from typing import Callable, Union, List, Optional
 
 from torch.utils.tensorboard import SummaryWriter
 import json
@@ -97,6 +97,7 @@ def text2fx(
     export_audio: bool = False,
     log_tensorboard: bool = False,
     random_seed: Optional[int] = 0,
+    progress_callback: Optional[Callable[[int, int, dict], None]] = None,
 ):
 
     clap = get_model(model_name)
@@ -261,6 +262,12 @@ def text2fx(
         optimizer.step()
 
         pbar.set_description(f"step: {n+1}/{n_iters}, loss: {loss.item():.3f}")
+        if progress_callback is not None:
+            progress_callback(
+                n + 1,
+                n_iters,
+                channel.save_params_to_dict(params.detach().cpu()),
+            )
 
         #saving last batch_loss
         if n == n_iters - 1:
